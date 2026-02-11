@@ -3,73 +3,66 @@ from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfigura
 import cv2
 import numpy as np
 
-# ================= CONFIGURARE PAGINĂ =================
-st.set_page_config(page_title="INSTA FRAME FULLSCREEN", layout="wide")
+st.set_page_config(page_title="Insta Face Tracking", layout="wide")
 
-# CSS pentru Full Screen și ascunderea meniurilor inutile
+# CSS pentru a face video-ul să ocupe tot ecranul pe cât posibil
 st.markdown("""
 <style>
-    #root > div:nth-child(1) > div > div > div > div > section > div { padding-top: 0rem; }
-    .stApp { background: black; }
-    iframe { border: none; width: 100vw; height: 80vh; }
-    .fullscreen-btn {
-        background-color: #FF00FF;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 20px;
-        text-align: center;
-        cursor: pointer;
-        font-weight: bold;
-        display: inline-block;
-        margin: 10px;
+    .main { background: black; }
+    div[data-testid="stVerticalBlock"] > div:has(iframe) { 
+        display: flex; justify-content: center; 
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Detector de fețe stabil (OpenCV)
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-class InstaFrameTransformer(VideoTransformerBase):
+class FaceTrackingTransformer(VideoTransformerBase):
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
+        h, w, _ = img.shape
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-        for (x, y, w, h) in faces:
-            color = (255, 0, 255) # Magenta Instagram
-            l, t = 40, 6 # Lungime colț și grosime
+        if len(faces) > 0:
+            # Luăm prima față detectată
+            (x, y, fw, fh) = faces[0]
             
-            # Desenăm Rama (cele 8 linii pentru colțuri)
-            cv2.line(img, (x, y), (x + l, y), color, t)
-            cv2.line(img, (x, y), (x, y + l), color, t)
-            cv2.line(img, (x + w, y), (x + w - l, y), color, t)
-            cv2.line(img, (x + w, y), (x + w, y + l), color, t)
-            cv2.line(img, (x, y + h), (x + l, y + h), color, t)
-            cv2.line(img, (x, y + h), (x, y + h - l), color, t)
-            cv2.line(img, (x + w, y + h), (x + w - l, y + h), color, t)
-            cv2.line(img, (x + w, y + h), (x + w, y + h - l), color, t)
+            # Calculăm zona de zoom (adăugăm un padding în jurul feței)
+            padding = 100
+            x1 = max(0, x - padding)
+            y1 = max(0, y - padding)
+            x2 = min(w, x + fw + padding)
+            y2 = min(h, y + fh + padding)
+            
+            # Tăiem imaginea (Crop)
+            face_zone = img[y1:y2, x1:x2]
+            
+            # Redimensionăm înapoi la dimensiunea originală (Efectul de Zoom)
+            img = cv2.resize(face_zone, (w, h), interpolation=cv2.INTER_LINEAR)
+            
+            # Desenăm rama de Insta pe imaginea deja mărită
+            # (Rama va sta acum la marginile feței detectate)
+            color = (255, 0, 255)
+            thickness = 8
+            l = 60
+            # Colțuri desenate relativ la noul frame mărit
+            cv2.line(img, (50, 50), (50 + l, 50), color, thickness)
+            cv2.line(img, (50, 50), (50, 50 + l), color, thickness)
+            cv2.line(img, (w-50, 50), (w-50-l, 50), color, thickness)
+            cv2.line(img, (w-50, 50), (w-50, 50 + l), color, thickness)
+            cv2.line(img, (50, h-50), (50 + l, h-50), color, thickness)
+            cv2.line(img, (50, h-50), (50, h-50-l), color, thickness)
+            cv2.line(img, (w-50, h-50), (w-50-l, h-50), color, thickness)
+            cv2.line(img, (w-50, h-50), (w-50, h-50-l), color, thickness)
 
         return img
 
-st.title("📸 INSTA FACE FRAME - LIVE")
+st.title("🎬 INSTA FACE TRACKING LIVE")
 
-# Buton Full Screen (JavaScript)
-if st.button("Toggle Full Screen 📺"):
-    st.components.v1.html("""
-        <script>
-            var elem = window.parent.document.documentElement;
-            if (!window.parent.document.fullscreenElement) {
-                elem.requestFullscreen();
-            } else {
-                window.parent.document.exitFullscreen();
-            }
-        </script>
-    """, height=0)
-
-# Lansare Video Streamer
 webrtc_streamer(
-    key="insta-filter",
-    video_transformer_factory=InstaFrameTransformer,
+    key="face-tracking",
+    video_transformer_factory=FaceTrackingTransformer,
     rtc_configuration=RTCConfiguration(
         {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
     ),
