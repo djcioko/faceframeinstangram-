@@ -1,6 +1,4 @@
 streamlit
-deepface
-tf-keras
+streamlit-webrtc
 opencv-python-headless
 numpy
-Pillow
