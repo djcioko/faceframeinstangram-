@@ -1,8 +1,6 @@
-
 streamlit
 deepface
 tf-keras
 opencv-python-headless
-mediapipe
 numpy
 Pillow
